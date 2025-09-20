@@ -1,73 +1,136 @@
 import React, { useState, useEffect } from 'react';
 
 const App = () => {
-  // State untuk mengelola daftar checklist tunggal
-  const [checklist, setChecklist] = useState({
-    title: "Daftar Tugas Saya",
-    content: [],
-  });
+  const [items, setItems] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [currentItem, setCurrentItem] = useState(null); // Item yang sedang diedit
+  const [currentItem, setCurrentItem] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
 
-  // Mengambil data dari localStorage saat aplikasi pertama kali dimuat
+  const BASE_URL = 'http://localhost:8080';
+
+  // Mengambil data dari backend saat aplikasi dimuat
   useEffect(() => {
-    const storedChecklist = JSON.parse(localStorage.getItem('checklist'));
-    if (storedChecklist) {
-      setChecklist(storedChecklist);
-    }
+    const fetchItems = async () => {
+      try {
+        const response = await fetch(`${BASE_URL}/items`);
+        if (!response.ok) {
+          throw new Error('Gagal mengambil item');
+        }
+        const data = await response.json();
+        setItems(data);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
+
+    fetchItems();
   }, []);
 
-  // Menyimpan data ke localStorage setiap kali ada perubahan pada checklist
-  useEffect(() => {
-    localStorage.setItem('checklist', JSON.stringify(checklist));
-  }, [checklist]);
+  // Fungsi untuk mengubah status "completed" pada item melalui API
+  const handleChecklistToggle = async (id) => {
+    const itemToUpdate = items.find(item => item.id === id);
+    if (!itemToUpdate) return;
 
-  const handleChecklistToggle = (index) => {
-    const newContent = [...checklist.content];
-    newContent[index] = {
-      ...newContent[index],
-      checked: !newContent[index].checked
-    };
-    setChecklist({ ...checklist, content: newContent });
+    const updatedData = { ...itemToUpdate, completed: !itemToUpdate.completed };
+
+    try {
+      const response = await fetch(`${BASE_URL}/items/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedData),
+      });
+      if (!response.ok) {
+        throw new Error('Gagal memperbarui item');
+      }
+      const updatedItem = await response.json();
+      setItems(prevItems => prevItems.map(i => (i.id === updatedItem.id ? updatedItem : i)));
+    } catch (error) {
+      console.error("Error updating item:", error);
+    }
   };
 
-  const handleAddItem = (text) => {
+  // Fungsi untuk menambah item baru melalui API
+  const handleAddItem = async (title, description) => {
     const newItem = {
-      text: text.trim(),
-      checked: false,
+      title: title.trim(),
+      description: description.trim(),
+      completed: false,
     };
-    setChecklist({ ...checklist, content: [...checklist.content, newItem] });
+    try {
+      const response = await fetch(`${BASE_URL}/items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newItem),
+      });
+      if (!response.ok) {
+        throw new Error('Gagal menambahkan item');
+      }
+      const createdItem = await response.json();
+      setItems(prevItems => [...prevItems, createdItem]);
+    } catch (error) {
+      console.error("Error creating item:", error);
+    }
   };
 
-  const handleUpdateItem = (index, newText) => {
-    const newContent = [...checklist.content];
-    newContent[index] = {
-      ...newContent[index],
-      text: newText.trim(),
+  // Fungsi untuk memperbarui item melalui API
+  const handleUpdateItem = async (id, newTitle, newDescription) => {
+    const itemToUpdate = items.find(item => item.id === id);
+    if (!itemToUpdate) return;
+
+    const updatedData = {
+      ...itemToUpdate,
+      title: newTitle.trim(),
+      description: newDescription.trim(),
     };
-    setChecklist({ ...checklist, content: newContent });
+
+    try {
+      const response = await fetch(`${BASE_URL}/items/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedData),
+      });
+      if (!response.ok) {
+        throw new Error('Gagal memperbarui item');
+      }
+      const updatedItem = await response.json();
+      setItems(prevItems => prevItems.map(i => (i.id === updatedItem.id ? updatedItem : i)));
+    } catch (error) {
+      console.error("Error updating item:", error);
+    }
   };
 
-  const handleDeleteItem = (index) => {
-    setItemToDelete(index);
+  // Fungsi untuk menampilkan modal konfirmasi penghapusan
+  const handleDeleteItem = (id) => {
+    setItemToDelete(id);
     setShowDeleteModal(true);
   };
 
-  const confirmDelete = () => {
-    const newContent = checklist.content.filter((_, index) => index !== itemToDelete);
-    setChecklist({ ...checklist, content: newContent });
-    setShowDeleteModal(false);
-    setItemToDelete(null);
+  // Fungsi untuk menghapus item dari backend
+  const confirmDelete = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/items/${itemToDelete}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        throw new Error('Gagal menghapus item');
+      }
+      setItems(prevItems => prevItems.filter(item => item.id !== itemToDelete));
+      setShowDeleteModal(false);
+      setItemToDelete(null);
+    } catch (error) {
+      console.error("Error deleting item:", error);
+    }
   };
 
-  const openModal = (item = null, index = null) => {
-    if (item) {
-      setCurrentItem({ item, index });
-    } else {
-      setCurrentItem(null);
-    }
+  const openModal = (item = null) => {
+    setCurrentItem(item);
     setModalOpen(true);
   };
 
@@ -77,16 +140,17 @@ const App = () => {
   };
 
   const ItemModal = () => {
-    const [text, setText] = useState(currentItem?.item.text || '');
+    const [title, setTitle] = useState(currentItem?.title || '');
+    const [description, setDescription] = useState(currentItem?.description || '');
 
     const handleSubmit = (e) => {
       e.preventDefault();
-      if (!text.trim()) return;
+      if (!title.trim()) return;
 
       if (currentItem) {
-        handleUpdateItem(currentItem.index, text);
+        handleUpdateItem(currentItem.id, title, description);
       } else {
-        handleAddItem(text);
+        handleAddItem(title, description);
       }
       closeModal();
     };
@@ -99,16 +163,27 @@ const App = () => {
           </h2>
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
-              <label htmlFor="itemText" className="block text-gray-700 font-semibold mb-2">Isi Item</label>
+              <label htmlFor="itemTitle" className="block text-gray-700 font-semibold mb-2">Judul</label>
               <input
                 type="text"
-                id="itemText"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
+                id="itemTitle"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Tuliskan item Anda di sini..."
+                placeholder="Tuliskan judul item"
                 required
               />
+            </div>
+            <div className="mb-4">
+              <label htmlFor="itemDescription" className="block text-gray-700 font-semibold mb-2">Deskripsi (Opsional)</label>
+              <textarea
+                id="itemDescription"
+                rows="3"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Tuliskan deskripsi item"
+              ></textarea>
             </div>
             <div className="flex justify-end space-x-4">
               <button
@@ -167,36 +242,49 @@ const App = () => {
 
       <main className="container mx-auto p-6 flex-grow">
         <div className="p-6 rounded-lg shadow-md bg-[#e0f2fe] border-l-4 border-[#38bdf8]">
-          <h3 className="text-2xl font-semibold text-gray-800 mb-4">{checklist.title}</h3>
-          {checklist.content.length === 0 ? (
+          <h3 className="text-2xl font-semibold text-gray-800 mb-4">Daftar Tugas Saya</h3>
+          {items.length === 0 ? (
             <p className="text-center text-gray-500 text-lg my-10">Daftar masih kosong. Tambahkan item pertama Anda!</p>
           ) : (
             <ul className="list-none space-y-4">
-              {checklist.content.map((item, index) => (
-                <li key={index} className="flex items-start justify-between bg-white p-4 rounded-md shadow-sm">
-                  <div className="flex items-center">
+              {items.map((item) => (
+                <li key={item.id} className="flex items-start justify-between bg-white p-4 rounded-md shadow-sm">
+                  <div className="flex items-start">
                     <input
                       type="checkbox"
-                      checked={item.checked}
-                      onChange={() => handleChecklistToggle(index)}
-                      className="mr-3 form-checkbox h-5 w-5 text-blue-500 rounded focus:ring-blue-400 cursor-pointer"
+                      checked={item.completed}
+                      onChange={() => handleChecklistToggle(item.id)}
+                      className="mt-1 mr-3 form-checkbox h-5 w-5 text-blue-500 rounded focus:ring-blue-400 cursor-pointer"
                     />
-                    <span className={`text-lg text-gray-700 ${item.checked ? 'line-through text-gray-500' : ''}`}>
-                      {item.text}
-                    </span>
+                    <div>
+                      <h4 className={`text-lg font-medium text-gray-800 ${item.completed ? 'line-through text-gray-500' : ''}`}>
+                        {item.title}
+                      </h4>
+                      {item.description && (
+                        <p className={`text-sm text-gray-600 ${item.completed ? 'line-through text-gray-400' : ''}`}>
+                          {item.description}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex space-x-2">
+                  <div className="flex space-x-2 mt-1">
                     <button
-                      onClick={() => openModal(item, index)}
-                      className="text-blue-500 hover:text-blue-700 font-medium"
+                      onClick={() => openModal(item)}
+                      className="text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-blue-100 transition-colors"
+                      title="Edit"
                     >
-                      Edit
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-7.293 7.293-2.828-2.828 7.293-7.293zM10 6L8 8H4v8h8V12l2-2V6h-4z" />
+                      </svg>
                     </button>
                     <button
-                      onClick={() => handleDeleteItem(index)}
-                      className="text-red-500 hover:text-red-700 font-medium"
+                      onClick={() => handleDeleteItem(item.id)}
+                      className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 transition-colors"
+                      title="Hapus"
                     >
-                      Hapus
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M9 2a1 1 0 00-1 1v1H3.5a1 1 0 000 2h.5l.5 11a2 2 0 002 2h6a2 2 0 002-2l.5-11h.5a1 1 0 100-2H12V3a1 1 0 00-1-1H9zM8 3h4v1H8V3zM7 8a1 1 0 011-1h4a1 1 0 110 2h-4a1 1 0 01-1-1zm1 3a1 1 0 011 1v4a1 1 0 11-2 0v-4a1 1 0 011-1zm3 0a1 1 0 011 1v4a1 1 0 11-2 0v-4a1 1 0 011-1z" clipRule="evenodd" />
+                      </svg>
                     </button>
                   </div>
                 </li>
@@ -207,7 +295,7 @@ const App = () => {
       </main>
 
       <footer className="bg-gray-100 text-center p-4 text-gray-600 mt-auto">
-        &copy; 2024 Aplikasi Checklist Sederhana. Dibuat dengan Gemini.
+        &copy; 2025 Study Notes.
       </footer>
 
       {modalOpen && <ItemModal />}

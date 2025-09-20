@@ -3,8 +3,10 @@ package main
 import (
 	"back-end/database"
 	"back-end/handlers"
-	"github.com/gin-gonic/gin"
 	"log"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -13,6 +15,12 @@ func main() {
 
 	// Inisialisasi Gin router.
 	r := gin.Default()
+
+	// Konfigurasi CORS
+	config := cors.DefaultConfig()
+	config.AllowAllOrigins = true // Mengizinkan semua domain
+	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	r.Use(cors.New(config))
 
 	// Atur rute-rute API.
 	r.GET("/items", handlers.GetItems)
