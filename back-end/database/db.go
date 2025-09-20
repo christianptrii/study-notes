@@ -3,7 +3,7 @@ package database
 import (
 	"log"
 
-	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
 	"back-end/models"
@@ -12,10 +12,12 @@ import (
 var DB *gorm.DB
 
 func ConnectDB() {
-	dsn := "root:@tcp(localhost:3306)/study-notes?charset=utf8mb4&parseTime=True&loc=Local"
+	// Contoh DSN untuk PostgreSQL
+	// Pastikan untuk mengganti "user", "password", "host", "port", dan "dbname"
+	dsn := "host=localhost user=postgres password=12345 dbname=study-notes port=5432 sslmode=disable TimeZone=Asia/Jakarta"
 
 	var err error
-	DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
