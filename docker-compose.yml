@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+  frontend:
+    build: ./front-end # folder React (Dockerfile ada di sini)
+    ports:
+      - "3002:3000" # React dev server expose 3000, host pakai 3002
+    depends_on:
+      - backend
+    develop:
+      watch:
+        - action: rebuild
+          path: ./front-end/src
+
+  backend:
+    build: ./back-end
+    ports:
+      - "4000:4000"
+    depends_on:
+      - db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: demo_db
+      DB_HOST: db
+      DB_PORT: 5432
+    develop:
+      watch:
+        - action: rebuild
+          path: ./back-end
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 12345
+      POSTGRES_DB: demo_db
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  db-data:
